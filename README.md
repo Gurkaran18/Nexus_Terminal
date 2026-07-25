@@ -1,7 +1,5 @@
 # NexusTerminal
 
-![NexusTerminal Overview](https://via.placeholder.com/1200x600.png?text=NexusTerminal+-+Market+Analytics+%26+Portfolio+Dashboard)
-
 **NexusTerminal** is a modern, real-time market analytics and portfolio tracking dashboard built with the MERN stack (MongoDB, Express, React, Node.js) and TypeScript.
 
 This project is designed as a personal tracking tool to monitor global equities (US & India) and cryptocurrencies, calculate dynamic portfolio health and P&L, and receive real-time price updates via WebSockets.
