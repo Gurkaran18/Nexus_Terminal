@@ -6,8 +6,6 @@
 
 This project is designed as a personal tracking tool to monitor global equities (US & India) and cryptocurrencies, calculate dynamic portfolio health and P&L, and receive real-time price updates via WebSockets.
 
-> 📖 **Deep Dive:** For an exhaustive, line-by-line architectural breakdown of how this system was built, read the [INTERVIEW_MASTER_GUIDE.md](./INTERVIEW_MASTER_GUIDE.md).
-
 ## ✨ Key Features
 
 - **Real-Time Data Streaming:** Uses Socket.IO and the `yahoo-finance2` API to stream live market prices with zero HTTP polling overhead.
@@ -60,7 +58,6 @@ This project is designed as a personal tracking tool to monitor global equities 
 
 - `/frontend` - The React Vite SPA application.
 - `/backend` - The Node.js Express REST and WebSocket server.
-- `INTERVIEW_MASTER_GUIDE.md` - The architectural deep-dive document.
 
 ## 📄 License
 This project is open source and available under the [MIT License](LICENSE).
