@@ -157,7 +157,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 router.put("/:watchlistId/assets/:symbol", async (req: Request, res: Response) => {
   try {
     const watchlistId = req.params.watchlistId as string;
-    const symbol = req.params.symbol.toUpperCase();
+    const symbol = (req.params.symbol as string).toUpperCase();
     const { quantity, averagePurchasePrice } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(watchlistId)) {
@@ -195,7 +195,7 @@ router.put("/:watchlistId/assets/:symbol", async (req: Request, res: Response) =
 router.delete("/:watchlistId/assets/:symbol", async (req: Request, res: Response) => {
   try {
     const watchlistId = req.params.watchlistId as string;
-    const symbol = req.params.symbol.toUpperCase();
+    const symbol = (req.params.symbol as string).toUpperCase();
 
     if (!mongoose.Types.ObjectId.isValid(watchlistId)) {
       res.status(400).json({ error: "Invalid watchlist ID" });

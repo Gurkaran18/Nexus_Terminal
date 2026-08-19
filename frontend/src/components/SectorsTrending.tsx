@@ -60,7 +60,7 @@ const SectorsTrending: React.FC<SectorsTrendingProps> = ({ region }) => {
       <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
       <div className="p-7 pb-4 border-b border-white/5 relative z-10">
-        <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400">
+        <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400 border-l-[3px] border-emerald-500 pl-3">
           Trending Sectors
         </h2>
       </div>

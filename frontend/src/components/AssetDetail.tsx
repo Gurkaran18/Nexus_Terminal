@@ -21,6 +21,7 @@ const AssetDetail: React.FC<AssetDetailProps> = ({ onAdd, watchlists }) => {
   const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
   const [selectedWatchlistId, setSelectedWatchlistId] = useState('');
+  const [targetPrice, setTargetPrice] = useState('');
 
   useEffect(() => {
     if (watchlists.length > 0 && !selectedWatchlistId) {
@@ -90,7 +91,37 @@ const AssetDetail: React.FC<AssetDetailProps> = ({ onAdd, watchlists }) => {
     }
     if (symbol && quote) {
       onAdd(symbol, 0, quote.price, selectedWatchlistId);
-      // Optional: alert or toast here if needed
+    }
+  };
+
+  const handleAlertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!symbol || !targetPrice || !quote) return;
+    
+    const priceNum = parseFloat(targetPrice);
+    const condition = priceNum > quote.price ? 'above' : 'below';
+
+    try {
+      const response = await fetch('http://localhost:5001/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetSymbol: symbol,
+          targetPrice: priceNum,
+          condition,
+          userEmail: 'demo@example.com'
+        })
+      });
+
+      if (response.ok) {
+        alert(`🚨 Alert set for ${symbol} ${condition} $${priceNum}!`);
+        setTargetPrice('');
+      } else {
+        alert("Failed to set alert.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error setting alert.");
     }
   };
 
@@ -293,6 +324,36 @@ const AssetDetail: React.FC<AssetDetailProps> = ({ onAdd, watchlists }) => {
                 className="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 font-bold py-3 px-4 rounded-xl shadow-lg transition-colors"
               >
                 + Add to Watchlist
+              </button>
+            </form>
+          </div>
+
+          {/* Price Alert Form */}
+          <div className="glass-panel p-6 rounded-2xl border border-white/5">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+              </svg>
+              Create Price Alert
+            </h3>
+            <form onSubmit={handleAlertSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Target Price</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={targetPrice} 
+                    onChange={e => setTargetPrice(e.target.value)}
+                    placeholder={quote?.price ? quote.price.toFixed(2) : "0.00"}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg py-2 pl-7 pr-3 text-white focus:outline-none focus:border-amber-500" 
+                    required 
+                  />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 font-bold py-3 px-4 rounded-xl shadow-lg transition-colors">
+                Set Alert
               </button>
             </form>
           </div>

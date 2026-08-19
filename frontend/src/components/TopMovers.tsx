@@ -79,7 +79,7 @@ const TopMovers: React.FC<TopMoversProps> = ({ region, onSymbolClick }) => {
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/20 rounded-full blur-[80px] pointer-events-none"></div>
 
       <div className="flex justify-between items-center mb-6 relative z-10">
-        <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400">
+        <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400 border-l-[3px] border-blue-500 pl-3">
           Top Movers
         </h2>
       </div>

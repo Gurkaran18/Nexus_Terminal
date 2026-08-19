@@ -31,6 +31,39 @@ body {
   min-height: 100vh;
 }
 
+/* Slow ambient gradient drift — makes the page feel alive */
+@keyframes ambientDrift {
+  0%   { background-position: 0% 0%, 100% 100%; }
+  25%  { background-position: 30% 10%, 70% 90%; }
+  50%  { background-position: 50% 50%, 50% 50%; }
+  75%  { background-position: 70% 90%, 30% 10%; }
+  100% { background-position: 0% 0%, 100% 100%; }
+}
+
+.ambient-bg {
+  background-image: 
+    radial-gradient(ellipse 600px 600px at var(--amb-x1, 10%) var(--amb-y1, 20%), rgba(59, 130, 246, 0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 500px at var(--amb-x2, 90%) var(--amb-y2, 80%), rgba(16, 185, 129, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 400px 400px at 50% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
+  background-size: 200% 200%, 200% 200%, 100% 100%;
+  animation: ambientDrift 25s ease-in-out infinite;
+}
+
+/* Gradient top border accent for KPI row */
+.gradient-border-top {
+  position: relative;
+}
+.gradient-border-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(59, 130, 246, 0.5), rgba(139, 92, 246, 0.3), transparent);
+  border-radius: 1px;
+}
+
 /* Glassmorphism Panels */
 .glass-panel {
   background: var(--bg-panel);

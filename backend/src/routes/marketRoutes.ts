@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import YahooFinance from 'yahoo-finance2';
+import redisClient from '../config/redisClient';
 
 const router = express.Router();
 // Initialize YahooFinance instance
@@ -29,9 +30,16 @@ router.get('/search/:query', async (req: Request, res: Response) => {
 router.get('/quote/:symbol', async (req: Request, res: Response) => {
   try {
     const symbol = req.params.symbol as string;
+
+    const cachedData = await redisClient.get(symbol);
+    if (cachedData) {
+      res.json(JSON.parse(cachedData));
+      return;
+    }
+
     const quote = await yahooFinance.quoteSummary(symbol, { modules: ['price', 'summaryDetail'] });
     
-    res.json({
+    const data = {
       symbol: symbol,
       name: quote.price?.shortName || quote.price?.longName || symbol,
       price: quote.price?.regularMarketPrice || 0,
@@ -42,7 +50,11 @@ router.get('/quote/:symbol', async (req: Request, res: Response) => {
       fiftyTwoWeekHigh: quote.summaryDetail?.fiftyTwoWeekHigh || 0,
       fiftyTwoWeekLow: quote.summaryDetail?.fiftyTwoWeekLow || 0,
       currency: quote.price?.currency || 'USD'
-    });
+    };
+
+    await redisClient.setEx(symbol, 300, JSON.stringify(data));
+
+    res.json(data);
   } catch (error) {
     console.error("Quote API Error:", error);
     res.status(500).json({ error: 'Failed to fetch quote details' });

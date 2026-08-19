@@ -2,13 +2,15 @@ import express, { Request, Response } from "express";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import cors from "cors"; // Cross-Origin resource sharing
-import NodeCache from "node-cache";
 import mongoose from "mongoose";
+import redisClient from "./config/redisClient";
 import YahooFinance from "yahoo-finance2";
 import portfolioRoutes from "./routes/portfolioRoutes";
 import marketRoutes from "./routes/marketRoutes";
 import watchlistRoutes from "./routes/watchlistRoutes";
-import { startAlertWorker } from "./services/alertWorker";
+import alertRoutes from "./routes/alertRoutes";
+import orderRoutes from "./routes/orderRoutes";
+import aiRoutes from "./routes/aiRoutes";
 
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
@@ -35,7 +37,11 @@ io.on("connection", (socket) => {
       const usSymbols = ['^GSPC', '^DJI', '^IXIC']; // S&P 500, Dow Jones, Nasdaq
       const inSymbols = ['^NSEI', '^BSESN', '^CNXIT']; // Nifty 50, Sensex, Nifty IT
       const cryptoSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD']; // Crypto
-      const marqueeSymbols = ['AAPL', 'BTC-USD', 'GC=F', 'RELIANCE.NS'];
+      const marqueeSymbols = [
+        'AAPL', 'BA', 'BRK-B', 'DIS', 'GE', 'HD', 'NKE', // US
+        'INFY.NS', 'HDFCBANK.NS', 'RELIANCE.NS', 'TECHM.NS', 'TCS.NS', 'TATATECH.NS', 'AXISBANK.NS', 'SWIGGY.NS', // IN
+        'BTC-USD', 'ETH-USD', 'SOL-USD' // Crypto
+      ];
       
       const allSymbols = Array.from(new Set([...usSymbols, ...inSymbols, ...cryptoSymbols, ...marqueeSymbols]));
       const quotes = await yahooFinance.quote(allSymbols);
@@ -78,9 +84,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// Initialize cache with 5 minutes (300 seconds) standard TTL
-const cache = new NodeCache({ stdTTL: 300 });
-
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -91,6 +94,9 @@ app.use(express.json());
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/watchlists", watchlistRoutes);
+app.use("/api/alerts", alertRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/ai", aiRoutes);
 
 // ---------------------------------------------------------------------------
 // Health-check route
@@ -125,13 +131,31 @@ async function connectDB(): Promise<void> {
 // Start server
 // ---------------------------------------------------------------------------
 
-connectDB().then(() => {
-  // Start the background cron job for alerts
-  startAlertWorker();
+Promise.all([
+  connectDB(),
+  redisClient.connect().then(() => console.log('Redis Connected Successfully'))
+]).then(async () => {
+  // Set up Redis Subscriber for Microservice Alerts
+  const redisSubscriber = redisClient.duplicate();
+  await redisSubscriber.connect();
+  console.log("📡 Backend Redis Subscriber listening for alerts...");
+
+  redisSubscriber.subscribe("PRICE_ALERTS", (message) => {
+    console.log("📨 Backend received alert from Microservice:", message);
+    try {
+      const alertData = JSON.parse(message);
+      io.emit("priceAlert", alertData);
+    } catch (err) {
+      console.error("Error parsing alert message:", err);
+    }
+  });
 
   httpServer.listen(PORT, () => {
     console.log(`🚀  Server is listening on http://localhost:${PORT}`);
   });
+}).catch(err => {
+  console.error("Failed to initialize backend:", err);
+  process.exit(1);
 });
 
 export default app;

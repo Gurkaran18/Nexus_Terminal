@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    volumes:
+      # Map the local backend folder to /app inside the container
+      - ./backend:/app
+      # Prevent the container from using local Mac node_modules
+      - /app/node_modules
+    # Override the production start command to use the dev server
+    command: npm run dev
+
+  alert-worker:
+    volumes:
+      - ./alert-worker:/app
+      - /app/node_modules
+    command: npm run dev
+
+  ai-service:
+    volumes:
+      # Live-reload: map local ai-service folder into the container
+      - ./ai-service:/app
+    # Override prod CMD with uvicorn --reload for hot reloading
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    volumes:
+      # Map the local frontend folder to /app inside the container
+      - ./frontend:/app
+      # Prevent the container from using local Mac node_modules
+      - /app/node_modules
+    # Override the production start command to use Vite's dev server
+    command: npm run dev -- --host 0.0.0.0 --port 5173

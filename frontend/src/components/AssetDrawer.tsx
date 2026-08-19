@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AreaChart, Area, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, Tooltip, ResponsiveContainer, XAxis } from 'recharts';
 
 interface AssetDrawerProps {
   symbol: string | null;
@@ -17,6 +17,7 @@ const AssetDrawer: React.FC<AssetDrawerProps> = ({ symbol, isOpen, onClose, onAd
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [changePercent, setChangePercent] = useState<number>(0);
   const [selectedWatchlistId, setSelectedWatchlistId] = useState<string>('');
+  const [targetPrice, setTargetPrice] = useState<string>('');
 
   useEffect(() => {
     if (watchlists.length > 0 && !selectedWatchlistId) {
@@ -87,6 +88,37 @@ const AssetDrawer: React.FC<AssetDrawerProps> = ({ symbol, isOpen, onClose, onAd
     }
   };
 
+  const handleAlertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!symbol || !targetPrice) return;
+    
+    const priceNum = parseFloat(targetPrice);
+    const condition = priceNum > currentPrice ? 'above' : 'below';
+
+    try {
+      const response = await fetch('http://localhost:5001/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetSymbol: symbol,
+          targetPrice: priceNum,
+          condition,
+          userEmail: 'demo@example.com'
+        })
+      });
+
+      if (response.ok) {
+        alert(`🚨 Alert set for ${symbol} ${condition} $${priceNum}!`);
+        setTargetPrice('');
+      } else {
+        alert("Failed to set alert.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error setting alert.");
+    }
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -130,6 +162,7 @@ const AssetDrawer: React.FC<AssetDrawerProps> = ({ symbol, isOpen, onClose, onAd
                         <stop offset="95%" stopColor={changePercent >= 0 ? '#10b981' : '#ef4444'} stopOpacity={0} />
                       </linearGradient>
                     </defs>
+                    <XAxis dataKey="date" hide />
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
                       itemStyle={{ color: '#fff' }}
@@ -214,6 +247,36 @@ const AssetDrawer: React.FC<AssetDrawerProps> = ({ symbol, isOpen, onClose, onAd
                 </div>
                 <button type="submit" className="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 font-semibold py-2.5 rounded-lg shadow-lg transition-all">
                   + Add to Watchlist
+                </button>
+              </form>
+            </div>
+
+            {/* Price Alert Form */}
+            <div className="bg-white/5 rounded-xl p-5 border border-white/10 mb-6">
+              <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+                Create Price Alert
+              </h3>
+              <form onSubmit={handleAlertSubmit} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Target Price</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-500">$</span>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={targetPrice} 
+                      onChange={e => setTargetPrice(e.target.value)}
+                      placeholder={currentPrice ? currentPrice.toFixed(2) : "0.00"}
+                      className="w-full bg-slate-950 border border-white/10 rounded-lg py-2 pl-7 pr-3 text-white focus:outline-none focus:border-amber-500" 
+                      required 
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 font-semibold py-2.5 rounded-lg shadow-lg transition-all">
+                  Set Alert
                 </button>
               </form>
             </div>

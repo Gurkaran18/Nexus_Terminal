@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMarketData } from './hooks/useMarketData';
 import SearchComponent from './components/SearchComponent';
 import TopMovers from './components/TopMovers';
@@ -7,8 +7,15 @@ import AssetDrawer from './components/AssetDrawer';
 import WatchlistView from './components/WatchlistView';
 import AssetDetail from './components/AssetDetail';
 import PortfolioView from './components/PortfolioView';
+import HoldingsTab from './components/HoldingsTab';
+import OrdersTab from './components/OrdersTab';
+import WatchlistTab from './components/WatchlistTab';
+import AICopilot from './components/AICopilot';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import socket from './services/socketService';
 import './index.css';
+
+type HomeTab = 'explore' | 'holdings' | 'orders' | 'watchlist';
 
 interface WatchlistAsset {
   symbol: string;
@@ -26,46 +33,18 @@ interface WatchlistData {
 // ---------------------------------------------------------------------------
 // Child Component: Mini Asset Card for Live Ticker Strip
 // ---------------------------------------------------------------------------
-interface MiniAssetCardProps {
-  symbol: string;
-  price: number;
-}
+// ---------------------------------------------------------------------------
 
-const MiniAssetCard: React.FC<MiniAssetCardProps> = ({ symbol, price }) => {
-  const prevPriceRef = useRef<number>(price);
-  const [flashClass, setFlashClass] = useState<string>('');
-
-  useEffect(() => {
-    if (price > prevPriceRef.current) {
-      setFlashClass('flash-up');
-    } else if (price < prevPriceRef.current) {
-      setFlashClass('flash-down');
-    }
-    prevPriceRef.current = price;
-
-    const timer = setTimeout(() => {
-      setFlashClass('');
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [price]);
-
-  const formattedPrice = new Intl.NumberFormat('en-US', {
-    style: 'decimal',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(price);
-
-  return (
-    <div className="mini-ticker">
-      <span className="mini-symbol">{symbol}</span>
-      <span className={`mini-price ${flashClass}`}>
-        {formattedPrice}
-      </span>
-    </div>
-  );
+const SYMBOL_COLORS: { [key: string]: { text: string, glow: string, border: string, bg: string } } = {
+  'S&P 500': { text: 'text-cyan-400', glow: 'shadow-[0_0_12px_rgba(34,211,238,0.3)]', border: 'border-cyan-500/30', bg: 'bg-cyan-500/8' },
+  'DOW JONES': { text: 'text-amber-400', glow: 'shadow-[0_0_12px_rgba(251,191,36,0.3)]', border: 'border-amber-500/30', bg: 'bg-amber-500/8' },
+  'NASDAQ': { text: 'text-fuchsia-400', glow: 'shadow-[0_0_12px_rgba(232,121,249,0.3)]', border: 'border-fuchsia-500/30', bg: 'bg-fuchsia-500/8' },
+  'NIFTY 50': { text: 'text-orange-400', glow: 'shadow-[0_0_12px_rgba(251,146,60,0.3)]', border: 'border-orange-500/30', bg: 'bg-orange-500/8' },
+  'SENSEX': { text: 'text-teal-400', glow: 'shadow-[0_0_12px_rgba(45,212,191,0.3)]', border: 'border-teal-500/30', bg: 'bg-teal-500/8' },
+  'NIFTY IT': { text: 'text-indigo-400', glow: 'shadow-[0_0_12px_rgba(129,140,248,0.3)]', border: 'border-indigo-500/30', bg: 'bg-indigo-500/8' },
 };
 
-const SYMBOL_NAMES: Record<string, string> = {
+const SYMBOL_NAMES: { [key: string]: string } = {
   'GSPC': 'S&P 500',
   'DJI': 'DOW JONES',
   'IXIC': 'NASDAQ',
@@ -79,6 +58,7 @@ const SYMBOL_NAMES: Record<string, string> = {
 // ---------------------------------------------------------------------------
 const App: React.FC = () => {
   const [region, setRegion] = useState<'US' | 'IN' | 'CRYPTO'>('US');
+  const [homeTab, setHomeTab] = useState<HomeTab>('explore');
   const marketPayload = useMarketData(region);
   const { regionData, marqueeData } = marketPayload || { regionData: {}, marqueeData: {} };
   
@@ -93,6 +73,21 @@ const App: React.FC = () => {
   const [portfolioPnL, setPortfolioPnL] = useState<{ amount: number, percent: number }>({ amount: 0, percent: 0 });
   const [editingWatchlistId, setEditingWatchlistId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  
+  // Toast Alert State
+  const [toastAlert, setToastAlert] = useState<any>(null);
+
+  useEffect(() => {
+    socket.on('priceAlert', (data) => {
+      setToastAlert(data);
+      // Auto dismiss after 8 seconds
+      setTimeout(() => setToastAlert(null), 8000);
+    });
+
+    return () => {
+      socket.off('priceAlert');
+    };
+  }, []);
 
   const userEmail = 'demo@example.com';
 
@@ -256,6 +251,22 @@ const App: React.FC = () => {
       if (res.ok) {
         fetchWatchlists();
         alert(`${symbol} added to Watchlist!`);
+
+        // Create an order record if quantity > 0
+        if (quantity > 0) {
+          await fetch(`http://localhost:5001/api/orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userEmail: 'demo@example.com',
+              symbol,
+              region, // use current region from state
+              type: 'BUY',
+              quantity,
+              price: averagePurchasePrice
+            })
+          });
+        }
       }
     } catch (err) {
       console.error("Failed to add trade:", err);
@@ -290,7 +301,31 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout ambient-bg">
+      
+      {/* Toast Notification */}
+      {toastAlert && (
+        <div className="fixed top-6 right-6 z-50 animate-bounce bg-amber-500/10 border border-amber-500/50 backdrop-blur-md rounded-xl p-4 shadow-2xl flex items-start gap-4 max-w-sm">
+          <div className="bg-amber-500/20 p-2 rounded-full mt-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="text-amber-400 font-bold text-lg mb-1">Price Alert Triggered!</h4>
+            <p className="text-sm text-amber-200">
+              <strong className="text-white">{toastAlert.assetSymbol}</strong> has gone {toastAlert.condition} your target price of <strong className="text-white">${toastAlert.targetPrice}</strong>!
+            </p>
+            <p className="text-xs text-amber-400/70 mt-2">Current Price: ${toastAlert.currentPrice}</p>
+          </div>
+          <button onClick={() => setToastAlert(null)} className="text-amber-400/50 hover:text-amber-400 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <div className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setIsSidebarOpen(false)}></div>
       <aside className={`sidebar glass-panel border-r border-t-0 border-b-0 border-l-0 flex flex-col p-6 sticky top-0 h-screen overflow-y-auto ${isSidebarOpen ? 'open' : ''}`}>
@@ -392,8 +427,7 @@ const App: React.FC = () => {
                 </svg>
               </button>
               <div>
-                <h2 className="text-3xl font-bold header-gradient-text tracking-tight">Market Overview</h2>
-                <p className="text-sm text-gray-400 mt-1">Real-time telemetry and portfolio analytics</p>
+                <h2 className="text-3xl font-bold header-gradient-text tracking-tight">NexusTerminal</h2>
               </div>
             </div>
 
@@ -442,14 +476,18 @@ const App: React.FC = () => {
               <div className="marquee-wrapper ml-4">
                 <div className="marquee-content">
                   {/* Duplicate array for seamless infinite scrolling */}
-                  {[...Object.entries(marqueeData), ...Object.entries(marqueeData)].map(([symbol, price], i) => (
-                    <div key={`${symbol}-${i}`} className="flex items-center gap-2 mx-6">
-                      <span className="text-xs font-semibold text-gray-400">{symbol}</span>
-                      <span className="text-sm font-bold text-gray-200">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price as number)}
-                      </span>
-                    </div>
-                  ))}
+                  {[...Object.entries(marqueeData), ...Object.entries(marqueeData)].map(([symbol, price], i) => {
+                    const isIndian = symbol.endsWith('.NS');
+                    const currencyPrefix = isIndian ? '₹' : '$';
+                    return (
+                      <div key={`${symbol}-${i}`} className="flex items-center gap-2 mx-6">
+                        <span className="text-xs font-semibold text-gray-400">{symbol}</span>
+                        <span className="text-sm font-bold text-gray-200">
+                          {currencyPrefix}{Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -457,33 +495,51 @@ const App: React.FC = () => {
         </header>
 
         {/* KPI SUMMARY BAR (Globally Visible) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 gradient-border-top pt-6">
           <div 
             onClick={() => navigate('/portfolio')}
-            className="glass-panel rounded-xl p-4 flex flex-col justify-between cursor-pointer hover:bg-slate-800/60 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all duration-300 group relative overflow-hidden"
+            className="glass-panel rounded-xl p-5 flex flex-col justify-between cursor-pointer hover:border-blue-500/40 hover:shadow-[0_0_25px_rgba(59,130,246,0.15)] transition-all duration-300 group relative overflow-hidden"
           >
-            <div className="flex justify-between items-center mb-2 relative z-10">
+            {/* Accent glow */}
+            <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-blue-500/15 rounded-full blur-[50px] pointer-events-none group-hover:bg-blue-500/25 transition-all duration-500"></div>
+            <div className="flex justify-between items-center mb-3 relative z-10">
               <span className="text-xs text-gray-400 font-bold uppercase tracking-wider group-hover:text-blue-400 transition-colors">Total Invested</span>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+              </div>
             </div>
-            <span className="text-2xl font-bold text-white relative z-10">
+            <span className="text-3xl font-bold text-white relative z-10" style={{ fontVariantNumeric: 'tabular-nums' }}>
               ${watchlists.reduce((total, w) => total + w.assets.reduce((sum, a) => sum + (a.quantity * a.averagePurchasePrice), 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-          <div className="glass-panel rounded-xl p-4 flex flex-col justify-between">
-            <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">24h P&L (Est.)</span>
-            <span className={`text-2xl font-bold flex items-center gap-2 ${portfolioPnL.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <div className="glass-panel rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group">
+            {/* Accent glow */}
+            <div className={`absolute -bottom-8 -left-8 w-32 h-32 rounded-full blur-[50px] pointer-events-none transition-all duration-500 ${portfolioPnL.amount >= 0 ? 'bg-emerald-500/15 group-hover:bg-emerald-500/25' : 'bg-rose-500/15 group-hover:bg-rose-500/25'}`}></div>
+            <div className="flex justify-between items-center mb-3 relative z-10">
+              <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">24h P&L (Est.)</span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${portfolioPnL.amount >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${portfolioPnL.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={portfolioPnL.amount >= 0 ? "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" : "M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"} /></svg>
+              </div>
+            </div>
+            <span className={`text-3xl font-bold flex items-center gap-2 relative z-10 ${portfolioPnL.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>
               {portfolioPnL.amount >= 0 ? '+' : '-'}${Math.abs(portfolioPnL.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
               <span className={`text-sm font-bold px-2 py-0.5 rounded ${portfolioPnL.amount >= 0 ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-rose-500/20 border border-rose-500/30 text-rose-400'}`}>
                 {portfolioPnL.percent >= 0 ? '+' : ''}{portfolioPnL.percent.toFixed(2)}%
               </span>
             </span>
           </div>
-          <div className="glass-panel rounded-xl p-4 flex flex-col justify-between">
-            <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Health Index</span>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold text-blue-400">{healthIndex}<span className="text-sm text-gray-500">/100</span></span>
-              <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+          <div className="glass-panel rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group">
+            {/* Accent glow */}
+            <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-violet-500/15 rounded-full blur-[50px] pointer-events-none group-hover:bg-violet-500/25 transition-all duration-500"></div>
+            <div className="flex justify-between items-center mb-3 relative z-10">
+              <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Health Index</span>
+              <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 relative z-10">
+              <span className="text-3xl font-bold text-violet-400" style={{ fontVariantNumeric: 'tabular-nums' }}>{healthIndex}<span className="text-sm text-gray-500">/100</span></span>
+              <div className="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-white/5">
                 <div 
                   className={`h-full rounded-full transition-all duration-1000 ${healthIndex > 70 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 shadow-[0_0_8px_#10b981]' : healthIndex > 40 ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 shadow-[0_0_8px_#eab308]' : 'bg-gradient-to-r from-rose-500 to-rose-400 shadow-[0_0_8px_#f43f5e]'}`}
                   style={{ width: `${healthIndex}%` }}
@@ -491,9 +547,16 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="glass-panel rounded-xl p-4 flex flex-col justify-between">
-            <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Socket Status</span>
-            <div className="flex items-center gap-2 mt-auto">
+          <div className="glass-panel rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group">
+            {/* Accent glow */}
+            <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-emerald-500/15 rounded-full blur-[50px] pointer-events-none group-hover:bg-emerald-500/25 transition-all duration-500"></div>
+            <div className="flex justify-between items-center mb-3 relative z-10">
+              <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Socket Status</span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-auto relative z-10">
               {marketPayload ? (
                 <>
                   <span className="relative flex h-3 w-3">
@@ -518,23 +581,54 @@ const App: React.FC = () => {
               {/* REGIONAL INDICES WIDGET */}
               {region !== 'CRYPTO' && (
                 <div className="mb-8">
-                  <div className="flex flex-wrap gap-4">
-                    {Object.entries(regionData).map(([symbol, price]) => (
-                       <MiniAssetCard key={symbol} symbol={SYMBOL_NAMES[symbol] || symbol} price={price as number} />
-                    ))}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {Object.entries(regionData).map(([symbol, price]) => {
+                      const displayName = SYMBOL_NAMES[symbol] || symbol;
+                      const colors = SYMBOL_COLORS[displayName] || { text: 'text-sky-400', glow: '', border: 'border-white/10', bg: 'bg-white/5' };
+                      return (
+                        <div 
+                          key={symbol} 
+                          className={`glass-panel rounded-xl p-5 flex flex-col gap-1 border ${colors.border} ${colors.bg} hover:${colors.glow} transition-all duration-300`}
+                        >
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{displayName}</span>
+                          <span className={`text-2xl font-bold ${colors.text}`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price as number)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* WIDGET GRID */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                <div className="lg:col-span-1">
-                  <TopMovers region={region} onSymbolClick={(symbol) => setDrawerSymbol(symbol)} />
-                </div>
-                <div className="lg:col-span-2">
-                  <SectorsTrending region={region} />
-                </div>
+              {/* TAB BAR */}
+              <div className="flex overflow-x-auto gap-8 border-b border-white/10 mb-6 pb-2">
+                {(['explore', 'holdings', 'orders', 'watchlist'] as HomeTab[]).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setHomeTab(tab)}
+                    className={`pb-2 capitalize font-semibold text-lg transition-colors whitespace-nowrap ${homeTab === tab ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-200'}`}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
+
+              {/* TAB CONTENT */}
+              {homeTab === 'explore' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                  <div className="lg:col-span-1">
+                    <TopMovers region={region} onSymbolClick={(symbol) => setDrawerSymbol(symbol)} />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <SectorsTrending region={region} />
+                  </div>
+                </div>
+              )}
+
+              {homeTab === 'holdings' && <HoldingsTab region={region} watchlists={watchlists} />}
+              {homeTab === 'orders' && <OrdersTab region={region} />}
+              {homeTab === 'watchlist' && <WatchlistTab region={region} watchlists={watchlists} onRefresh={fetchWatchlists} />}
             </>
           } />
           <Route path="/watchlist/:watchlistId" element={
@@ -562,6 +656,9 @@ const App: React.FC = () => {
         onAdd={handleAddTrade}
         watchlists={watchlists}
       />
+
+      {/* AI Copilot floating panel */}
+      <AICopilot />
     </div>
   );
 };
