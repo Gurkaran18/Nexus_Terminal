@@ -5,8 +5,6 @@ interface SectorData {
   name: string;
   symbol: string;
   priceChange: number;
-  gainers: number;
-  losers: number;
 }
 
 // Helper to map sector names to icons
@@ -70,14 +68,11 @@ const SectorsTrending: React.FC<SectorsTrendingProps> = ({ region }) => {
           <thead>
             <tr className="border-b border-white/5 text-[11px] font-bold text-gray-500 uppercase tracking-widest bg-slate-900/30">
               <th className="p-5 pl-7">Sector</th>
-              <th className="p-5 text-center">Market Breadth</th>
               <th className="p-5 pr-7 text-right">1D Change</th>
             </tr>
           </thead>
           <tbody>
             {sectors.map((sector) => {
-              const total = sector.gainers + sector.losers;
-              const gainerWidth = `${(sector.gainers / total) * 100}%`;
               const isUp = sector.priceChange >= 0;
 
               return (
@@ -88,18 +83,6 @@ const SectorsTrending: React.FC<SectorsTrendingProps> = ({ region }) => {
                         {getIcon(sector.name)}
                       </div>
                       <span className="font-bold text-gray-200 group-hover:text-white transition-colors">{sector.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-5 w-1/2">
-                    <div className="flex flex-col gap-2 w-full max-w-[280px] mx-auto">
-                      <div className="flex justify-between text-[11px] font-bold tracking-wider text-gray-500">
-                        <span className="text-emerald-500/80">{sector.gainers} Adv</span>
-                        <span className="text-rose-500/80">{sector.losers} Dec</span>
-                      </div>
-                      <div className="w-full h-2 flex rounded-full overflow-hidden bg-slate-900 border border-white/5 shadow-inner">
-                        <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_8px_#34d399]" style={{ width: gainerWidth }}></div>
-                        <div className="h-full bg-gradient-to-r from-rose-500 to-rose-600 shadow-[0_0_8px_#f43f5e] flex-grow"></div>
-                      </div>
                     </div>
                   </td>
                   <td className="p-5 pr-7 text-right">

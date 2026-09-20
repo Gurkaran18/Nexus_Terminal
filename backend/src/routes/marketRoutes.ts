@@ -171,7 +171,7 @@ router.get('/movers', async (req: Request, res: Response) => {
   }
 });
 
-// 3. Sectors Endpoint (Option A: Real Prices, Simulated Ratios)
+// 3. Sectors Endpoint
 router.get('/sectors', async (req: Request, res: Response) => {
   try {
     const region = (req.query.region as string) || 'US';
@@ -209,20 +209,11 @@ router.get('/sectors', async (req: Request, res: Response) => {
 
     const formattedSectors = sectorMap.map(sector => {
       const quote = quotes.find(q => q.symbol === sector.id);
-      
-      // Generate a simulated green/red ratio (e.g., 29 gainers, 10 losers)
-      // We weight it slightly based on whether the overall sector is up or down
-      const isUp = (quote?.regularMarketChangePercent || 0) >= 0;
-      const gainerBase = isUp ? 60 : 20;
-      const gainersCount = Math.floor(gainerBase + Math.random() * 40);
-      const losersCount = 100 - gainersCount;
 
       return {
         name: sector.name,
         symbol: sector.id,
-        priceChange: quote?.regularMarketChangePercent || 0,
-        gainers: gainersCount,
-        losers: losersCount
+        priceChange: quote?.regularMarketChangePercent || 0
       };
     });
 
