@@ -28,59 +28,71 @@ const io = new SocketIOServer(httpServer, {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Live Market Feed
+// One server-wide poll shared by every connected client, so N open tabs still
+// cost exactly one batched Yahoo Finance call every 10 seconds.
+// ---------------------------------------------------------------------------
+const usSymbols = ['^GSPC', '^DJI', '^IXIC']; // S&P 500, Dow Jones, Nasdaq
+const inSymbols = ['^NSEI', '^BSESN', '^CNXIT']; // Nifty 50, Sensex, Nifty IT
+const cryptoSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD']; // Crypto
+const marqueeSymbols = [
+  'AAPL', 'BA', 'BRK-B', 'DIS', 'GE', 'HD', 'NKE', // US
+  'INFY.NS', 'HDFCBANK.NS', 'RELIANCE.NS', 'TECHM.NS', 'TCS.NS', 'TATATECH.NS', 'AXISBANK.NS', 'SWIGGY.NS', // IN
+  'BTC-USD', 'ETH-USD', 'SOL-USD' // Crypto
+];
+
+const allSymbols = Array.from(new Set([...usSymbols, ...inSymbols, ...cryptoSymbols, ...marqueeSymbols]));
+
+// Last broadcast payload, replayed to clients that connect mid-cycle
+let lastMarketData: any = null;
+
+async function broadcastMarketUpdate() {
+  try {
+    const quotes = await yahooFinance.quote(allSymbols);
+
+    const marketData: any = {
+      timestamp: new Date().toISOString(),
+      US: {},
+      IN: {},
+      CRYPTO: {},
+      MARQUEE: {}
+    };
+
+    quotes.forEach(q => {
+      const key = q.symbol.replace('^', '').replace('-USD', '').replace('=F', '');
+      if (usSymbols.includes(q.symbol)) {
+        marketData.US[key] = q.regularMarketPrice;
+      }
+      if (inSymbols.includes(q.symbol)) {
+        marketData.IN[key] = q.regularMarketPrice;
+      }
+      if (cryptoSymbols.includes(q.symbol)) {
+        // Keep the -USD for crypto if preferred, or use the stripped key
+        marketData.CRYPTO[q.symbol.replace('-USD', '')] = q.regularMarketPrice;
+      }
+      if (marqueeSymbols.includes(q.symbol)) {
+        marketData.MARQUEE[key] = q.regularMarketPrice;
+      }
+    });
+
+    lastMarketData = marketData;
+    io.emit("marketUpdate", marketData);
+  } catch (err) {
+    console.error("Market feed error:", err);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log(`🔌 New WebSocket Connection: ${socket.id}`);
 
-  // Emit real live market data every 10 seconds to avoid strict rate limits
-  const intervalId = setInterval(async () => {
-    try {
-      const usSymbols = ['^GSPC', '^DJI', '^IXIC']; // S&P 500, Dow Jones, Nasdaq
-      const inSymbols = ['^NSEI', '^BSESN', '^CNXIT']; // Nifty 50, Sensex, Nifty IT
-      const cryptoSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD']; // Crypto
-      const marqueeSymbols = [
-        'AAPL', 'BA', 'BRK-B', 'DIS', 'GE', 'HD', 'NKE', // US
-        'INFY.NS', 'HDFCBANK.NS', 'RELIANCE.NS', 'TECHM.NS', 'TCS.NS', 'TATATECH.NS', 'AXISBANK.NS', 'SWIGGY.NS', // IN
-        'BTC-USD', 'ETH-USD', 'SOL-USD' // Crypto
-      ];
-      
-      const allSymbols = Array.from(new Set([...usSymbols, ...inSymbols, ...cryptoSymbols, ...marqueeSymbols]));
-      const quotes = await yahooFinance.quote(allSymbols);
-      
-      const marketData: any = {
-        timestamp: new Date().toISOString(),
-        US: {},
-        IN: {},
-        CRYPTO: {},
-        MARQUEE: {}
-      };
-      
-      quotes.forEach(q => {
-        const key = q.symbol.replace('^', '').replace('-USD', '').replace('=F', '');
-        if (usSymbols.includes(q.symbol)) {
-          marketData.US[key] = q.regularMarketPrice;
-        }
-        if (inSymbols.includes(q.symbol)) {
-          marketData.IN[key] = q.regularMarketPrice;
-        }
-        if (cryptoSymbols.includes(q.symbol)) {
-          // Keep the -USD for crypto if preferred, or use the stripped key
-          marketData.CRYPTO[q.symbol.replace('-USD', '')] = q.regularMarketPrice;
-        }
-        if (marqueeSymbols.includes(q.symbol)) {
-          marketData.MARQUEE[key] = q.regularMarketPrice;
-        }
-      });
+  // Serve the latest snapshot right away so new clients don't wait 10s
+  if (lastMarketData) {
+    socket.emit("marketUpdate", lastMarketData);
+  }
 
-      socket.emit("marketUpdate", marketData);
-    } catch (err) {
-      console.error("Socket emit error:", err);
-    }
-  }, 10000);
-
-  // Prevent memory leaks by clearing the interval on disconnect
   socket.on("disconnect", () => {
     console.log(`🔌 WebSocket Disconnected: ${socket.id}`);
-    clearInterval(intervalId);
   });
 });
 
@@ -152,6 +164,10 @@ Promise.all([
 
   httpServer.listen(PORT, () => {
     console.log(`🚀  Server is listening on http://localhost:${PORT}`);
+
+    // Single shared market poll, started once for the whole server
+    broadcastMarketUpdate();
+    setInterval(broadcastMarketUpdate, 10000);
   });
 }).catch(err => {
   console.error("Failed to initialize backend:", err);
