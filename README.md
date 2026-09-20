@@ -6,10 +6,10 @@ This project is designed as a personal tracking tool to monitor global equities 
 
 ## ✨ Key Features
 
-- **Real-Time Data Streaming:** Uses WebSockets (Socket.IO) and the `yahoo-finance2` API to stream live market prices with zero HTTP polling overhead for sub-second data synchronization.
+- **Real-Time Data Streaming:** Uses WebSockets (Socket.IO) and the `yahoo-finance2` API to stream live market prices: the server makes one batched Yahoo Finance call every 10 seconds and pushes it to all clients via Socket.IO.
 - **AI Portfolio Copilot:** Integrated LLM (Google Gemini, `gemini-2.5-flash` by default) via a Python FastAPI microservice to provide intelligent, natural language insights and analysis on your portfolio. The LLM runs in its own container so the live price stream never waits on it.
-- **Dynamic Portfolio Analytics:** Automatically calculates VWAP (Volume-Weighted Average Price), 24h P&L, and scores portfolio health based on diversification and risk concentration.
-- **High-Performance Caching:** Utilizes an in-memory **Redis** cache to manage third-party API rate limits, reducing response latency to ~1ms.
+- **Dynamic Portfolio Analytics:** Automatically calculates quantity-weighted average cost, 24h P&L, and scores portfolio health based on diversification and risk concentration.
+- **High-Performance Caching:** Utilizes an in-memory **Redis** cache to manage third-party API rate limits.
 - **Asynchronous Background Workers:** A dedicated Node.js worker evaluates user price alerts every minute against live Yahoo Finance prices (one batched quote call per run) and publishes triggered alerts over Redis Pub/Sub, which the backend relays to the browser over WebSockets.
 - **Premium Glassmorphism UI:** Built with React, Tailwind CSS, and Recharts, featuring interactive area/donut charts, debounced global search, and slide-over asset drawers.
 
