@@ -24,11 +24,12 @@ app.add_middleware(
 )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 CACHE_TTL = 300  # Cache AI responses for 5 minutes
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel(GEMINI_MODEL)
 
 # ---------------------------------------------------------------------------
 # Redis client (initialized at startup)
@@ -40,7 +41,7 @@ async def startup_event():
     global redis_client
     redis_client = await aioredis.from_url(REDIS_URL, decode_responses=True)
     print("✅ AI Service: Redis connected")
-    print(f"✅ AI Service: Gemini configured (key ends in ...{GEMINI_API_KEY[-6:] if GEMINI_API_KEY else 'MISSING'})")
+    print(f"✅ AI Service: Gemini configured (model={GEMINI_MODEL}, key ends in ...{GEMINI_API_KEY[-6:] if GEMINI_API_KEY else 'MISSING'})")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -119,7 +120,8 @@ async def health_check():
         "status": "ok",
         "service": "ai-copilot",
         "redis": "connected" if redis_ok else "disconnected",
-        "gemini": "configured" if GEMINI_API_KEY else "missing_key"
+        "gemini": "configured" if GEMINI_API_KEY else "missing_key",
+        "model": GEMINI_MODEL
     }
 
 @app.post("/analyze", response_model=AIResponse)
@@ -128,7 +130,7 @@ async def analyze_portfolio(req: AnalyzeRequest):
     key = cache_key("analyze", req.dict())
     cached = await get_cached(key)
     if cached:
-        return AIResponse(response=cached, cached=True, model="gemini-1.5-flash")
+        return AIResponse(response=cached, cached=True, model=GEMINI_MODEL)
 
     context = build_portfolio_context(req.holdings, req.totalValue)
     gain_str = f"+{req.totalGainLossPct:.2f}%" if req.totalGainLoss >= 0 else f"{req.totalGainLossPct:.2f}%"
@@ -149,10 +151,10 @@ Please provide:
 Keep the response concise, data-driven, and use markdown formatting. Do not give specific buy/sell advice."""
 
     try:
-        result = model.generate_content(prompt)
+        result = await model.generate_content_async(prompt)
         response_text = result.text
         await set_cached(key, response_text)
-        return AIResponse(response=response_text, cached=False, model="gemini-1.5-flash")
+        return AIResponse(response=response_text, cached=False, model=GEMINI_MODEL)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
 
@@ -162,7 +164,7 @@ async def ask_question(req: AskRequest):
     key = cache_key("ask", req.dict())
     cached = await get_cached(key)
     if cached:
-        return AIResponse(response=cached, cached=True, model="gemini-1.5-flash")
+        return AIResponse(response=cached, cached=True, model=GEMINI_MODEL)
 
     context = build_portfolio_context(req.holdings, req.totalValue)
 
@@ -180,9 +182,9 @@ Instructions:
 - Do not give specific buy/sell advice, only factual analysis"""
 
     try:
-        result = model.generate_content(prompt)
+        result = await model.generate_content_async(prompt)
         response_text = result.text
         await set_cached(key, response_text)
-        return AIResponse(response=response_text, cached=False, model="gemini-1.5-flash")
+        return AIResponse(response=response_text, cached=False, model=GEMINI_MODEL)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
