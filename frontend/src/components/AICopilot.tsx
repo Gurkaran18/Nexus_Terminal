@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:5001/api/ai';
+const USER_EMAIL = 'demo@example.com';
 
 // ---------------------------------------------------------------------------
 // Markdown-lite renderer (bold + line breaks — no external deps needed)
@@ -50,7 +51,11 @@ const AICopilot: React.FC = () => {
     setIsLoading(true);
     setMessages(prev => [...prev, { role: 'ai', content: '🔍 Analyzing your portfolio...' }]);
     try {
-      const res = await fetch(`${API_BASE}/analyze`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail: USER_EMAIL }),
+      });
       const data = await res.json();
       setMessages(prev => [
         ...prev.slice(0, -1),
@@ -77,7 +82,7 @@ const AICopilot: React.FC = () => {
       const res = await fetch(`${API_BASE}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, userEmail: USER_EMAIL }),
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'ai', content: data.response || data.error, cached: data.cached }]);
