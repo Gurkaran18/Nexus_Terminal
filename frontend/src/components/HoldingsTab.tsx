@@ -26,24 +26,24 @@ const HoldingsTab: React.FC<HoldingsTabProps> = ({ region, watchlists }) => {
 
   const holdings = Object.values(holdingsMap);
 
-  // Fetch live prices for these symbols
+  // Fetch live prices for these symbols via the batch quotes endpoint.
+  // The single-symbol /quote/:symbol route cannot take a comma-joined list.
+  const symbolsStr = holdings.map(h => h.symbol).join(',');
+
   useEffect(() => {
-    if (holdings.length === 0) return;
-    const symbolsStr = holdings.map(h => h.symbol).join(',');
-    
-    fetch(`http://localhost:5001/api/market/quote/${symbolsStr}`)
+    if (!symbolsStr) return;
+
+    fetch(`http://localhost:5001/api/market/quotes?symbols=${encodeURIComponent(symbolsStr)}`)
       .then(res => res.json())
       .then(data => {
         const prices: Record<string, number> = {};
         if (Array.isArray(data)) {
           data.forEach(d => prices[d.symbol] = d.price);
-        } else if (data.symbol) {
-          prices[data.symbol] = data.price;
         }
         setLivePrices(prices);
       })
       .catch(err => console.error("Error fetching live prices:", err));
-  }, [region, watchlists]);
+  }, [symbolsStr]);
 
   const currencySymbol = region === 'IN' ? '₹' : '$';
 
