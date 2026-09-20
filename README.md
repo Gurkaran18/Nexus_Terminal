@@ -7,17 +7,17 @@ This project is designed as a personal tracking tool to monitor global equities 
 ## ✨ Key Features
 
 - **Real-Time Data Streaming:** Uses WebSockets (Socket.IO) and the `yahoo-finance2` API to stream live market prices with zero HTTP polling overhead for sub-second data synchronization.
-- **AI Portfolio Copilot:** Integrated LLM via a Python FastAPI microservice to provide intelligent, natural language insights and analysis on your portfolio.
+- **AI Portfolio Copilot:** Integrated LLM (Google Gemini, `gemini-2.5-flash` by default) via a Python FastAPI microservice to provide intelligent, natural language insights and analysis on your portfolio. The LLM runs in its own container so the live price stream never waits on it.
 - **Dynamic Portfolio Analytics:** Automatically calculates VWAP (Volume-Weighted Average Price), 24h P&L, and scores portfolio health based on diversification and risk concentration.
 - **High-Performance Caching:** Utilizes an in-memory **Redis** cache to manage third-party API rate limits, reducing response latency to ~1ms.
-- **Asynchronous Background Workers:** Dedicated Node.js background workers independently evaluate real-time user price alerts without blocking the main event loop.
+- **Asynchronous Background Workers:** A dedicated Node.js worker evaluates user price alerts every minute against live Yahoo Finance prices (one batched quote call per run) and publishes triggered alerts over Redis Pub/Sub, which the backend relays to the browser over WebSockets.
 - **Premium Glassmorphism UI:** Built with React, Tailwind CSS, and Recharts, featuring interactive area/donut charts, debounced global search, and slide-over asset drawers.
 
 ## 🛠️ Technology Stack
 
 - **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Recharts, Socket.IO Client
 - **Core Backend:** Node.js, Express, TypeScript, Socket.IO
-- **AI Microservice:** Python, FastAPI, Google Gemini LLM
+- **AI Microservice:** Python, FastAPI, Google Gemini LLM (`gemini-2.5-flash`)
 - **Database & Caching:** MongoDB (Mongoose), Redis
 - **Infrastructure:** Docker, Docker Compose
 - **Data Provider:** Yahoo Finance API (`yahoo-finance2`)
@@ -39,10 +39,16 @@ The recommended way to run this project is using Docker, which automatically orc
    ```
 
 2. **Environment Variables:**
-   Create a `.env` file in the root directory containing your API keys:
+   Copy `.env.example` to `.env` in the root directory and fill in your API key:
    ```env
    GEMINI_API_KEY=your_google_gemini_api_key
+   GEMINI_MODEL=gemini-2.5-flash
    ```
+
+   | Variable | Required | Default | Description |
+   | --- | --- | --- | --- |
+   | `GEMINI_API_KEY` | Yes | — | Google Gemini API key used by the AI service. |
+   | `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model the AI service calls. Override it to switch models without a code change. |
 
 3. **Start the Application:**
    ```bash
