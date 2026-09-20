@@ -165,7 +165,7 @@ const AICopilot: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-bold text-white">AI Portfolio Copilot</h2>
-              <p className="text-xs text-violet-400">Powered by Gemini 1.5 Flash</p>
+              <p className="text-xs text-violet-400">Powered by Gemini</p>
             </div>
           </div>
           <button
