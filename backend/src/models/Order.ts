@@ -9,6 +9,12 @@ export interface IOrder extends Document {
   price: number;
   total: number;
   date: Date;
+  // Paper-trade position lifecycle. Orders created before this field existed
+  // have no `status` stored; they are treated as open everywhere.
+  status: 'open' | 'closed';
+  closePrice?: number;
+  closedAt?: Date;
+  realizedPnL?: number;
 }
 
 const OrderSchema: Schema = new Schema({
@@ -19,7 +25,11 @@ const OrderSchema: Schema = new Schema({
   quantity: { type: Number, required: true },
   price: { type: Number, required: true },
   total: { type: Number, required: true },
-  date: { type: Date, default: Date.now }
+  date: { type: Date, default: Date.now },
+  status: { type: String, enum: ['open', 'closed'], default: 'open' },
+  closePrice: { type: Number },
+  closedAt: { type: Date },
+  realizedPnL: { type: Number }
 });
 
 export default mongoose.model<IOrder>('Order', OrderSchema);
