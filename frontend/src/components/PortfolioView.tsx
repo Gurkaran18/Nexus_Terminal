@@ -46,8 +46,6 @@ const PortfolioView: React.FC<PortfolioViewProps> = ({ watchlists, onUpdateAsset
     return acc;
   }, [] as WatchlistAsset[]);
 
-  const symbols = allAssets.map(a => a.symbol);
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center mb-2">
@@ -65,7 +63,7 @@ const PortfolioView: React.FC<PortfolioViewProps> = ({ watchlists, onUpdateAsset
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <PortfolioPerformanceChart watchlist={symbols} />
+          <PortfolioPerformanceChart assets={allAssets} />
         </div>
         <div className="lg:col-span-1">
           <AssetAllocation assets={allAssets} />

@@ -97,8 +97,6 @@ const WatchlistView: React.FC = () => {
     return <div className="text-gray-400 p-8">Watchlist not found.</div>;
   }
 
-  const symbols = watchlist.assets.map(a => a.symbol);
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center">
@@ -110,8 +108,8 @@ const WatchlistView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-           {/* We pass the symbols to the Performance Chart so it can fetch history */}
-          <PortfolioPerformanceChart watchlist={symbols} />
+           {/* We pass the holdings to the Performance Chart so it can fetch history and weight by quantity */}
+          <PortfolioPerformanceChart assets={watchlist.assets} />
         </div>
         <div className="lg:col-span-1">
            {/* AssetAllocation needs to be modified to accept direct data rather than fetching. We will pass assets directly. */}
@@ -132,7 +130,7 @@ const WatchlistView: React.FC = () => {
                   <th className="pb-3 font-semibold">Symbol</th>
                   <th className="pb-3 font-semibold text-right">Quantity</th>
                   <th className="pb-3 font-semibold text-right">Avg Price</th>
-                  <th className="pb-3 font-semibold text-right">Total Value</th>
+                  <th className="pb-3 font-semibold text-right">Invested</th>
                   <th className="pb-3 font-semibold text-center">Actions</th>
                 </tr>
               </thead>

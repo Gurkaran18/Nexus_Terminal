@@ -9,59 +9,63 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
+interface ChartAsset {
+  symbol: string;
+  quantity: number;
+}
+
 interface PortfolioPerformanceChartProps {
-  watchlist?: string[];
+  assets?: ChartAsset[];
   onLoadSample?: () => void;
 }
 
 const ranges = ['1w', '1mo', '1y', '2y', '5y'];
 
-const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ watchlist = [], onLoadSample }) => {
+const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ assets = [], onLoadSample }) => {
   const [range, setRange] = useState('1mo');
   const [data, setData] = useState<{ date: string; value: number }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // The parents build `watchlist` with .map(), so it is a new array identity on
-  // every render. Depending on the joined string instead keeps the effect from
-  // refetching when only the array identity changed.
-  const symbolsKey = watchlist.join(',');
+  // The parents rebuild `assets` on every render, so it is a new array identity
+  // each time. Depending on a joined "SYMBOL:QUANTITY" string instead keeps the
+  // effect from refetching when only the array identity changed, while still
+  // re-running when a symbol or a quantity actually changes.
+  const assetsKey = assets.map(a => `${a.symbol}:${a.quantity}`).join(',');
 
   useEffect(() => {
-    if (!symbolsKey) {
+    if (!assetsKey) {
       setData([]);
       return;
     }
 
+    // Rebuild the symbols and their quantities from the key, so the effect does
+    // not need the (unstable) assets array as a dependency.
+    const entries = assetsKey.split(',').map(pair => {
+      const [symbol, quantity] = pair.split(':');
+      return { symbol, quantity: Number(quantity) };
+    });
+    const symbolsParam = entries.map(e => e.symbol).join(',');
+    const quantityBySymbol = new Map(entries.map(e => [e.symbol, e.quantity]));
+
     const fetchHistory = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`http://localhost:5001/api/market/history?symbols=${symbolsKey}&range=${range}`);
+        const response = await fetch(`http://localhost:5001/api/market/history?symbols=${symbolsParam}&range=${range}`);
         if (response.ok) {
           const json = await response.json();
           
-          // Aggregate logic: sum up the closing prices for all symbols on each date
-          // (assuming quantity = 1 for simplicity of visualization as requested)
-          const aggregated: Record<string, number> = {};
-          
-          json.forEach((item: any) => {
-            item.quotes.forEach((q: any) => {
-              // Ensure we have a valid close price
-              if (q.close !== null && q.close !== undefined) {
-                // Group by simple date string (YYYY-MM-DD)
-                const dateKey = new Date(q.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: range === '1y' || range === '2y' || range === '5y' ? '2-digit' : undefined });
-                aggregated[dateKey] = (aggregated[dateKey] || 0) + q.close;
-              }
-            });
-          });
-
-          // Convert object to array and sort by actual date parsing (since keys are formatted strings)
-          // Actually, let's keep original Date strings for sorting, then format.
+          // Aggregate logic: for each date, sum every holding's close price
+          // weighted by the quantity held, so the series is the watchlist's
+          // value rather than a bare sum of share prices.
+          // Keyed by timestamp so the points sort chronologically before they
+          // are formatted for display.
           const tempAggr: Record<string, number> = {};
           json.forEach((item: any) => {
+             const quantity = quantityBySymbol.get(item.symbol) ?? 0;
              item.quotes.forEach((q: any) => {
                  if (q.close !== null && q.close !== undefined) {
                      const time = new Date(q.date).getTime();
-                     tempAggr[time] = (tempAggr[time] || 0) + q.close;
+                     tempAggr[time] = (tempAggr[time] || 0) + q.close * quantity;
                  }
              });
           });
@@ -87,7 +91,7 @@ const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ w
     };
 
     fetchHistory();
-  }, [symbolsKey, range]);
+  }, [assetsKey, range]);
 
   return (
     <div className="w-full h-96 bg-[#1e293b]/70 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col transition-all">
@@ -95,7 +99,7 @@ const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ w
         <h2 className="text-xl font-bold text-gray-200">Watchlist Growth</h2>
         
         {/* Time Range Toggles */}
-        {watchlist.length > 0 && (
+        {assets.length > 0 && (
           <div className="flex bg-black/20 p-1 rounded-lg border border-white/5">
             {ranges.map(r => (
               <button
@@ -113,7 +117,7 @@ const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ w
       </div>
 
       <div className="flex-grow w-full">
-        {watchlist.length === 0 ? (
+        {assets.length === 0 ? (
           <div className="relative w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-xl overflow-hidden group">
             {/* Skeleton Chart Background */}
             <div className="absolute inset-0 opacity-10 pointer-events-none">
