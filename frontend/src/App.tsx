@@ -627,7 +627,7 @@ const App: React.FC = () => {
               )}
 
               {homeTab === 'holdings' && <HoldingsTab region={region} watchlists={watchlists} />}
-              {homeTab === 'orders' && <OrdersTab region={region} />}
+              {homeTab === 'orders' && <OrdersTab region={region} onHoldingsChanged={fetchWatchlists} />}
               {homeTab === 'watchlist' && <WatchlistTab region={region} watchlists={watchlists} onRefresh={fetchWatchlists} />}
             </>
           } />

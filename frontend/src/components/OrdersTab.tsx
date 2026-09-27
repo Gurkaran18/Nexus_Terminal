@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 
 interface OrdersTabProps {
   region: 'US' | 'IN' | 'CRYPTO';
+  // Closing a position reduces the matching watchlist holding, so the
+  // dashboard totals need to be refetched afterwards.
+  onHoldingsChanged?: () => void;
 }
 
 interface Order {
@@ -19,7 +22,7 @@ interface Order {
   realizedPnL?: number;
 }
 
-const OrdersTab: React.FC<OrdersTabProps> = ({ region }) => {
+const OrdersTab: React.FC<OrdersTabProps> = ({ region, onHoldingsChanged }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
@@ -51,6 +54,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ region }) => {
       if (res.ok) {
         const updated = await res.json();
         setOrders(prev => prev.map(o => (o._id === updated._id ? updated : o)));
+        if (updated.holdingAdjustment && !updated.holdingAdjustment.applied) {
+          window.alert(updated.holdingAdjustment.message);
+        }
+        onHoldingsChanged?.();
       } else {
         const body = await res.json().catch(() => ({}));
         window.alert(body.error || 'Failed to close the position.');
