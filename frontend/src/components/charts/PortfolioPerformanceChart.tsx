@@ -21,8 +21,13 @@ const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ w
   const [data, setData] = useState<{ date: string; value: number }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // The parents build `watchlist` with .map(), so it is a new array identity on
+  // every render. Depending on the joined string instead keeps the effect from
+  // refetching when only the array identity changed.
+  const symbolsKey = watchlist.join(',');
+
   useEffect(() => {
-    if (watchlist.length === 0) {
+    if (!symbolsKey) {
       setData([]);
       return;
     }
@@ -30,7 +35,7 @@ const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ w
     const fetchHistory = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`http://localhost:5001/api/market/history?symbols=${watchlist.join(',')}&range=${range}`);
+        const response = await fetch(`http://localhost:5001/api/market/history?symbols=${symbolsKey}&range=${range}`);
         if (response.ok) {
           const json = await response.json();
           
@@ -82,7 +87,7 @@ const PortfolioPerformanceChart: React.FC<PortfolioPerformanceChartProps> = ({ w
     };
 
     fetchHistory();
-  }, [watchlist, range]);
+  }, [symbolsKey, range]);
 
   return (
     <div className="w-full h-96 bg-[#1e293b]/70 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col transition-all">
